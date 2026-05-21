@@ -1,0 +1,7 @@
+inputs/
+CLAUDE.local.md
+outputs/
+__pycache__/
+*.pyc
+*.pyo
+.env
