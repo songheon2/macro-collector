@@ -56,6 +56,11 @@ def run_process() -> None:
     else:
         logger.warning("supply 데이터 없음 - 전처리 건너뜀")
 
+    processed_manual: list[pd.DataFrame] = []
+    for df_m in manual_frames:
+        df_m = remove_outliers(df_m)
+        processed_manual.append(df_m)
+
     # STEP 5: 파생변수 생성
     logger.info("=== STEP 5: 파생변수 생성 ===")
     df_kospi = calc_log_return(df_kospi)
@@ -68,7 +73,7 @@ def run_process() -> None:
         logger.warning(
             "supply 데이터 없음 - 최종 피처에서 컬럼 누락: foreign_net, institution_net, retail_net"
         )
-    df_all = pd.concat([df_kospi, df_supply, df_bond_all, *manual_frames], axis=1)
+    df_all = pd.concat([df_kospi, df_supply, df_bond_all, *processed_manual], axis=1)
     df_all.index.name = "date"
     save_processed(df_all, "macro_features")
 
