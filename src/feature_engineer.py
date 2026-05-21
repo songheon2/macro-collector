@@ -23,13 +23,19 @@ def calc_log_return(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def calc_rolling_volatility(df: pd.DataFrame, window: int = config.ROLLING_WINDOW) -> pd.DataFrame:
-    """log_return의 rolling std (연율화 없음, 모델에서 처리)."""
+    """log_return의 rolling std — 거래일 한정 계산 후 원래 인덱스에 병합."""
     df = df.copy()
     if "log_return" not in df.columns:
         raise ValueError("calc_log_return을 먼저 호출해야 합니다.")
 
-    df[f"volatility_{window}d"] = df["log_return"].rolling(window=window, min_periods=window).std()
-    logger.info("rolling_volatility_%dd 계산 완료", window)
+    trading_vol = (
+        df["log_return"]
+        .dropna()
+        .rolling(window=window, min_periods=window)
+        .std()
+    )
+    df[f"volatility_{window}d"] = trading_vol
+    logger.info("rolling_volatility_%dd 계산 완료 (거래일 기준)", window)
     return df
 
 
