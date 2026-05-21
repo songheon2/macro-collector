@@ -176,8 +176,9 @@ Tool/
 ### `src/preprocessor.py`
 - **역할**: 결측치·이상치 처리, 한국 휴장일 마킹
 - **핵심 함수**:
-  - `mark_holidays(df: pd.DataFrame) -> pd.DataFrame` — 휴장일 NaN 마킹 (forward fill 금지)
+  - `mark_holidays(df: pd.DataFrame) -> pd.DataFrame` — 휴장일 NaN 마킹
   - `remove_outliers(df: pd.DataFrame, sigma: float) -> pd.DataFrame` — 3σ 기준 제거
+  - `fill_missing(df: pd.DataFrame) -> pd.DataFrame` — 1단계: 이상치 NaN 선형 보간(limit=1), 2단계: 휴장일 NaN ffill
 
 ### `src/feature_engineer.py`
 - **역할**: 모델 입력용 파생 변수 생성
@@ -266,7 +267,7 @@ set PYTHONIOENCODING=utf-8 && python collect.py
 | 로깅 | `print` 대신 Python `logging` 모듈 사용 |
 | 타입 힌트 | 모든 함수 시그니처에 타입 힌트 필수 |
 | 날짜 처리 | 모든 날짜는 `str (YYYY-MM-DD)` 입력, 내부에서 `pd.Timestamp` 변환 |
-| 결측치 전략 | 휴장일 = NaN 마킹, forward fill 금지 (모델 내에서 처리) |
+| 결측치 전략 | 이상치 NaN → 선형 보간(limit=1), 휴장일 NaN → ffill. 두 단계 모두 concat 후 저장 직전 적용. 시계열 시작부 잔여 NaN은 모델 레이어에서 처리 |
 | 에러 처리 | API 실패 시 재시도 로직 포함, 조용한 실패(silent fail) 금지. 단 수급 데이터(kospi_supply)는 선택적 피처로 ERROR 로그 출력 후 빈 DataFrame 허용 |
 | 코드 스타일 | Jupyter Notebook 스타일 금지 (셀 단위 실행 가정 코드 작성 금지) |
 
@@ -315,6 +316,7 @@ set PYTHONIOENCODING=utf-8 && python collect.py
 | 2026-05-21 | 수동 데이터 전처리 정책 확정: `remove_outliers`만 적용, `mark_holidays` 미적용 | `mark_holidays`는 한국 시장 캘린더 기반. 크립토·글로벌 매크로는 주말 포함 거래 존재하므로 적용 제외. 최종 인덱스 1,826 달력일 유지 | 창 1 |
 | 2026-05-21 | `volatility_20d` rolling 계산 기준 변경: 달력일 → 거래일 한정 | 달력일 기준 시 NaN 75.3% 발생. "20일"은 20 거래일이 설계 의도이며 거래일 한정 계산 시 결측률 ~35%로 정상화 | 창 1 |
 | 2026-05-21 | ECOS API 제거, 채권 데이터 수동 CSV로 전환 | 채권 수익률 수동 CSV가 이미 동일 데이터 커버. bond_collector.py 삭제, inputs/bond/ 추가, load_manual에 load_bond 추가. base_rate는 bond CSV 마지막 컬럼으로 수동 포함 | 창 1 |
+| 2026-05-21 | 결측치 처리 전략 변경: 모델 레이어 → 파이프라인 2단계 처리 | KOSPI/채권 ~35%, nasdaq ~31% 결측률이 모델 학습에 부담. 이상치 NaN은 선형 보간(limit=1), 휴장일 NaN은 ffill로 구분 처리. 이상치가 휴장일로 전파되는 것을 방지. concat 후 저장 직전 적용. 시작부 잔여 NaN은 모델 레이어에서 처리 | 창 1 |
 
 > 설계 변경 시 반드시 이 테이블에 추가한다.
 

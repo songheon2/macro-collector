@@ -5,7 +5,7 @@ from pathlib import Path
 import pandas as pd
 
 import config
-from src.preprocessor import mark_holidays, remove_outliers
+from src.preprocessor import mark_holidays, remove_outliers, fill_missing
 from src.feature_engineer import calc_log_return, calc_rolling_volatility, calc_yield_spreads
 from src.storage import load_raw, save_processed
 
@@ -67,14 +67,18 @@ def run_process() -> None:
     df_kospi = calc_rolling_volatility(df_kospi)
     df_bond_all = calc_yield_spreads(df_bond_all)
 
+    # STEP 5.5: 결측치 처리 (보간 → ffill)
+    logger.info("=== STEP 5.5: 결측치 처리 ===")
+    df_all = pd.concat([df_kospi, df_supply, df_bond_all, *processed_manual], axis=1)
+    df_all.index.name = "date"
+    df_all = fill_missing(df_all)
+
     # STEP 6: 통합 저장
     logger.info("=== STEP 6: 통합 저장 ===")
     if df_supply.empty:
         logger.warning(
             "supply 데이터 없음 - 최종 피처에서 컬럼 누락: foreign_net, institution_net, retail_net"
         )
-    df_all = pd.concat([df_kospi, df_supply, df_bond_all, *processed_manual], axis=1)
-    df_all.index.name = "date"
     save_processed(df_all, "macro_features")
 
     logger.info("전처리·피처 생성 완료. 최종 shape: %s", df_all.shape)

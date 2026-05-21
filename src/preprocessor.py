@@ -42,6 +42,17 @@ def remove_outliers(df: pd.DataFrame, sigma: float = config.OUTLIER_SIGMA) -> pd
     return df
 
 
+def fill_missing(df: pd.DataFrame) -> pd.DataFrame:
+    """결측치 2단계 처리: 이상치 NaN 보간 → 휴장일 NaN ffill."""
+    # 1단계: 이상치 제거로 생긴 고립 NaN — 직전·직후 값으로 선형 보간 (최대 1일)
+    df = df.interpolate(method="time", limit=1, limit_direction="both")
+    # 2단계: 휴장일·주말 NaN — forward fill
+    df = df.ffill()
+    remaining = df.isnull().sum().sum()
+    logger.info("결측 처리 완료 (보간→ffill). 잔여 결측: %d셀 (시작부 선행값 없음)", remaining)
+    return df
+
+
 def align_dates(df_left: pd.DataFrame, df_right: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     """두 DataFrame을 공통 날짜 인덱스로 정렬."""
     common = df_left.index.intersection(df_right.index)
