@@ -10,6 +10,13 @@ logger = logging.getLogger(__name__)
 
 # inputs/ 하위 카테고리별 기대 컬럼 정의
 _EXPECTED_COLUMNS: dict[str, list[str]] = {
+    "bond": [
+        "date",
+        "gov_1y", "gov_3y", "gov_5y", "gov_10y", "gov_20y", "gov_30y",
+        "msc_91d", "msc_1y", "msc_2y",
+        "corp_aa", "corp_bbb",
+        "base_rate",
+    ],
     "sentiment":    ["date", "sentiment_youtube", "sentiment_news"],
     "global_macro": ["date", "usd_krw", "gold_usd", "nasdaq_close", "us_rate"],
     "crypto":       ["date", "btc_close", "eth_close"],
@@ -109,6 +116,14 @@ def load_category(category: str) -> Optional[pd.DataFrame]:
 
     _validate_columns(combined, category, cat_dir)
     return combined
+
+
+def load_bond() -> Optional[pd.DataFrame]:
+    """inputs/bond/ 아래 CSV를 읽어 채권 수익률 DataFrame을 반환한다.
+
+    저장 대상: outputs/raw/bond_raw.parquet
+    """
+    return load_category("bond")
 
 
 def load_all_manual() -> dict[str, pd.DataFrame]:

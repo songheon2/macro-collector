@@ -5,7 +5,6 @@ import pandas as pd
 
 import config
 from src.collectors.kospi_collector import fetch_kospi_ohlcv, fetch_kospi_supply
-from src.collectors.bond_collector import fetch_bond_yields, fetch_credit_yields, fetch_base_rate
 from src.collectors.supplement_collector import fetch_kospi_yfinance, merge_with_fallback
 from src.storage import save_raw
 
@@ -35,14 +34,6 @@ def run_collect() -> None:
         )
         df_supply = pd.DataFrame()
     save_raw(df_supply, "kospi_supply_raw")
-
-    # STEP 3: 채권 수익률
-    logger.info("=== STEP 3: 채권 수익률 수집 ===")
-    df_bond = fetch_bond_yields(start, end)
-    df_credit = fetch_credit_yields(start, end)
-    df_base = fetch_base_rate(start, end)
-    df_bond_all = pd.concat([df_bond, df_credit, df_base], axis=1)
-    save_raw(df_bond_all, "bond_raw")
 
     logger.info("수집 완료")
 

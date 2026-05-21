@@ -23,7 +23,7 @@ def _check_raw_files() -> None:
     ]
     if missing:
         raise RuntimeError(
-            f"raw 파일이 없습니다. collect.py를 먼저 실행하세요.\n누락 파일: {missing}"
+            f"raw 파일이 없습니다. collect.py와 load_manual.py를 먼저 실행하세요.\n누락 파일: {missing}"
         )
 
 

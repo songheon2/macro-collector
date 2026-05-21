@@ -85,7 +85,6 @@ Tool/
 │   ├── collectors/
 │   │   ├── __init__.py
 │   │   ├── kospi_collector.py       # KRX / FinanceDataReader / yfinance
-│   │   ├── bond_collector.py        # 한국은행 ECOS API (국고채·통안채·회사채)
 │   │   └── supplement_collector.py  # 외국인·기관 수급, 보완 소스 통합
 │   ├── loaders/
 │   │   ├── __init__.py
@@ -94,6 +93,7 @@ Tool/
 │   ├── feature_engineer.py          # 파생 변수 계산 (수익률, 변동성, 스프레드)
 │   └── storage.py                   # CSV / Parquet 저장
 ├── inputs/                          # 팀원 수동 제공 CSV 저장소 (git 제외)
+│   ├── bond/                        # 채권 수익률 CSV (한국은행 홈페이지 수동 다운로드)
 │   ├── sentiment/                   # 김근환: 유튜브 제목·뉴스 헤드라인 감정점수
 │   ├── global_macro/                # 노정균: 환율·금값 / 이찬희: 나스닥·미국 금리
 │   └── crypto/                      # 이준하: 비트코인·이더리움
@@ -122,17 +122,10 @@ Tool/
 | 외국인·기관·개인 순매수 | KRX Open API (pykrx) | **선택적 피처** — KRX 크레덴셜 없을 시 빈 DataFrame 허용 |
 | 선물 미결제약정 | 미정 (미구현) | KRX 크레덴셜 확보 후 재논의 |
 
-### 한국 채권 (`bond_collector.py`)
-| 항목 | 소스 | 비고 |
-|------|------|------|
-| 국고채 수익률 1Y / 3Y / 5Y / 10Y / 20Y / 30Y | 한국은행 ECOS API | 수익률 곡선 |
-| 통안채 수익률 91일 / 1Y / 2Y | 한국은행 ECOS API | 단기 유동성 |
-| 회사채 AA- / BBB- 수익률 | 한국은행 ECOS API | 신용 스프레드 산출용 |
-| 기준금리 | 한국은행 ECOS API | 정책 변수 |
-
 ### 수동 CSV 데이터 (`inputs/`)
 | 담당 | 항목 | 저장 경로 | 컬럼 규칙 |
 |------|------|-----------|-----------|
+| 수동 다운로드 | 국고채 1Y/3Y/5Y/10Y/20Y/30Y, 통안채 91D/1Y/2Y, 회사채 AA-/BBB-, 기준금리 | `inputs/bond/` | date, gov_1y, gov_3y, gov_5y, gov_10y, gov_20y, gov_30y, msc_91d, msc_1y, msc_2y, corp_aa, corp_bbb, base_rate |
 | 김근환 | 유튜브 제목·뉴스 헤드라인 감정점수 | `inputs/sentiment/` | date, sentiment_youtube, sentiment_news |
 | 노정균 | 환율(USD/KRW), 금값(USD/oz) | `inputs/global_macro/` | date, usd_krw, gold_usd |
 | 이찬희 | 나스닥 지수, 미국 금리 | `inputs/global_macro/` | date, nasdaq_close, us_rate |
@@ -160,44 +153,19 @@ Tool/
   ```python
   START_DATE: str = "2021-01-01"
   END_DATE:   str = "2025-12-31"
-  ECOS_API_KEY: str = ""          # 환경변수 or 직접 입력
   RAW_DIR:  str = "outputs/raw"
   PROC_DIR: str = "outputs/processed"
   OUTLIER_SIGMA: float = 3.0      # 이상치 제거 기준
   ROLLING_WINDOW: int = 20        # 변동성 계산 rolling window
+  RETRY_ATTEMPTS: int = 3         # API 재시도 횟수 (KOSPI 컬렉터 공용)
+  RETRY_WAIT_SECONDS: int = 5     # API 재시도 대기 시간
   ```
-
-> ⚠️ **ECOS item code 미검증 — 세션 재시작 시 반드시 확인**
->
-> `ECOS_BOND_ITEMS`와 `ECOS_BASE_RATE_ITEM`의 코드값은 **실 API 검증 미완료** 상태.
-> 창 2가 2026-05-15에 창 1 지시 없이 임의 수정한 이력 있음.
->
-> | Key | 현재값(미검증) | 원본 추정값 |
-> |-----|--------------|------------|
-> | gov_5y  | 010200001 | 010210000 |
-> | gov_10y | 010210000 | 010220000 |
-> | gov_20y | 010220000 | 010230000 |
-> | gov_30y | 010230000 | 010240000 |
-> | msc_91d | 010400000 | 010300000 |
-> | msc_1y  | 010400001 | 010310000 |
-> | msc_2y  | 010400002 | 010320000 |
-> | corp_aa | 010300000 | 010400000 |
-> | corp_bbb| 010320000 | 010500000 |
->
-> **다음 세션 시작 시 최우선 과제**: ECOS API 키(`ECOS_API_KEY`) 확보 후 실 API 호출로 정확한 코드 확정.
 
 ### `src/collectors/kospi_collector.py`
 - **역할**: KOSPI 지수 및 수급 데이터 수집
 - **핵심 함수**:
   - `fetch_kospi_ohlcv(start: str, end: str) -> pd.DataFrame`
   - `fetch_kospi_supply(start: str, end: str) -> pd.DataFrame`
-
-### `src/collectors/bond_collector.py`
-- **역할**: 한국은행 ECOS API를 통한 채권 수익률 수집
-- **핵심 함수**:
-  - `fetch_bond_yields(start: str, end: str) -> pd.DataFrame` — 국고채·통안채 전 만기
-  - `fetch_credit_yields(start: str, end: str) -> pd.DataFrame` — 회사채 AA- / BBB-
-  - `fetch_base_rate(start: str, end: str) -> pd.DataFrame` — 기준금리
 
 ### `src/collectors/supplement_collector.py`
 - **역할**: yfinance 등 보완 소스 통합, 기본 소스 결측 시 대체
@@ -227,6 +195,7 @@ Tool/
 ### `src/loaders/manual_loader.py`
 - **역할**: `inputs/` 하위 CSV를 읽어 날짜 인덱스 정규화 후 `outputs/raw/`에 Parquet 저장
 - **핵심 함수**:
+  - `load_bond(path: str) -> pd.DataFrame` → `outputs/raw/bond_raw.parquet`
   - `load_sentiment(path: str) -> pd.DataFrame` → `outputs/raw/sentiment_raw.parquet`
   - `load_global_macro(path: str) -> pd.DataFrame` → `outputs/raw/global_macro_raw.parquet`
   - `load_crypto(path: str) -> pd.DataFrame` → `outputs/raw/crypto_raw.parquet`
@@ -236,17 +205,17 @@ Tool/
 - **역할**: 수동 CSV 로드 전용 진입점. `inputs/` → `outputs/raw/` 변환 후 종료
 - **선행 조건**: `inputs/` 하위 폴더에 CSV 파일 존재
 - **실행 순서**:
-  1. `inputs/sentiment/` CSV → `outputs/raw/sentiment_raw.parquet`
-  2. `inputs/global_macro/` CSV → `outputs/raw/global_macro_raw.parquet`
-  3. `inputs/crypto/` CSV → `outputs/raw/crypto_raw.parquet`
+  1. `inputs/bond/` CSV → `outputs/raw/bond_raw.parquet`
+  2. `inputs/sentiment/` CSV → `outputs/raw/sentiment_raw.parquet`
+  3. `inputs/global_macro/` CSV → `outputs/raw/global_macro_raw.parquet`
+  4. `inputs/crypto/` CSV → `outputs/raw/crypto_raw.parquet`
 
 ### `collect.py`
-- **역할**: 수집 전용 진입점. STEP 1~3만 실행하고 raw 파일 저장 후 종료
+- **역할**: API 수집 전용 진입점. KOSPI만 수집하고 raw 파일 저장 후 종료
 - **실행 순서**:
   1. config 로드
   2. KOSPI OHLCV 수집 → `outputs/raw/kospi_ohlcv_raw.parquet`
   3. KOSPI 수급 수집 → `outputs/raw/kospi_supply_raw.parquet`
-  4. 채권·회사채·기준금리 수집 → `outputs/raw/bond_raw.parquet`
 
 ### `process.py`
 - **역할**: 전처리·파생변수 전용 진입점. `outputs/raw/` 전체를 읽어서 실행
@@ -268,8 +237,8 @@ Tool/
 ## 실행 방식
 
 ```bash
-python collect.py        # API 수집 → outputs/raw/ 저장 (KOSPI, 채권)
-python load_manual.py    # 수동 CSV 로드 → outputs/raw/ 저장 (감정, 글로벌, 크립토)
+python collect.py        # API 수집 → outputs/raw/ 저장 (KOSPI)
+python load_manual.py    # 수동 CSV 로드 → outputs/raw/ 저장 (채권, 감정, 글로벌, 크립토)
 python process.py        # 전처리·파생변수 → outputs/processed/ 저장 (위 두 개 선행 필수)
 python main.py           # 전체 파이프라인 실행
 ```
@@ -312,8 +281,7 @@ set PYTHONIOENCODING=utf-8 && python collect.py
 3. `src/__init__.py`
 4. `src/collectors/__init__.py`
 5. `src/collectors/kospi_collector.py`
-6. `src/collectors/bond_collector.py`
-7. `src/collectors/supplement_collector.py`
+6. `src/collectors/supplement_collector.py`
 8. `src/preprocessor.py`
 9. `src/feature_engineer.py`
 10. `src/storage.py`
@@ -346,6 +314,7 @@ set PYTHONIOENCODING=utf-8 && python collect.py
 | 2026-05-15 | 수집 기간 변경: 2021-05-14~2026-05-14 → 2021-01-01~2025-12-31 | 실제 데이터 기간 확정 | 창 1 |
 | 2026-05-21 | 수동 데이터 전처리 정책 확정: `remove_outliers`만 적용, `mark_holidays` 미적용 | `mark_holidays`는 한국 시장 캘린더 기반. 크립토·글로벌 매크로는 주말 포함 거래 존재하므로 적용 제외. 최종 인덱스 1,826 달력일 유지 | 창 1 |
 | 2026-05-21 | `volatility_20d` rolling 계산 기준 변경: 달력일 → 거래일 한정 | 달력일 기준 시 NaN 75.3% 발생. "20일"은 20 거래일이 설계 의도이며 거래일 한정 계산 시 결측률 ~35%로 정상화 | 창 1 |
+| 2026-05-21 | ECOS API 제거, 채권 데이터 수동 CSV로 전환 | 채권 수익률 수동 CSV가 이미 동일 데이터 커버. bond_collector.py 삭제, inputs/bond/ 추가, load_manual에 load_bond 추가. base_rate는 bond CSV 마지막 컬럼으로 수동 포함 | 창 1 |
 
 > 설계 변경 시 반드시 이 테이블에 추가한다.
 
