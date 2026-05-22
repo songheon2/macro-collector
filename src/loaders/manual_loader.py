@@ -19,14 +19,26 @@ _EXPECTED_COLUMNS: dict[str, list[str]] = {
     ],
     "sentiment":    ["date", "sentiment_youtube", "sentiment_news"],
     "global_macro": ["date", "usd_krw", "gold_usd", "nasdaq_close", "us_rate"],
-    "crypto":       ["date", "btc_close", "eth_close"],
+    "crypto": [
+        "date",
+        "btc_open", "btc_high", "btc_low", "btc_close", "btc_volume",
+        "eth_open", "eth_high", "eth_low", "eth_close", "eth_volume",
+    ],
 }
 
 _INPUTS_DIR = Path("inputs")
 
 _COLUMN_MAP: dict[str, dict[str, str]] = {
-    "upbit_btc_2021_2025.csv":          {"datetime": "date", "close": "btc_close"},
-    "upbit_eth_2021_2025.csv":          {"datetime": "date", "close": "eth_close"},
+    "upbit_btc_2021_2025.csv": {
+        "datetime": "date",
+        "open": "btc_open", "high": "btc_high", "low": "btc_low",
+        "close": "btc_close", "volume": "btc_volume",
+    },
+    "upbit_eth_2021_2025.csv": {
+        "datetime": "date",
+        "open": "eth_open", "high": "eth_high", "low": "eth_low",
+        "close": "eth_close", "volume": "eth_volume",
+    },
     "exchange_rate_usdkrw_5years.csv":  {"Date": "date", "USDKRW": "usd_krw"},
     "gold_5years.csv":                  {"Date": "date", "GOLD": "gold_usd"},
     "nasdaq_2021_2025.csv":             {"Price": "date", "Close": "nasdaq_close"},
