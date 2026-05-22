@@ -91,6 +91,7 @@ Tool/
 │   │   └── manual_loader.py         # inputs/ CSV 읽기·정규화 → outputs/raw/ 저장
 │   ├── preprocessor.py              # 결측치·이상치 처리, 휴장일 마킹
 │   ├── feature_engineer.py          # 파생 변수 계산 (수익률, 변동성, 스프레드)
+│   ├── scaler.py                    # 2차 전처리: 로그 차분 + MinMax 정규화
 │   └── storage.py                   # CSV / Parquet 저장
 ├── inputs/                          # 팀원 수동 제공 CSV 저장소 (git 제외)
 │   ├── bond/                        # 채권 수익률 CSV (한국은행 홈페이지 수동 다운로드)
@@ -104,6 +105,7 @@ Tool/
 ├── collect.py                       # 수집 전용 진입점 (STEP 1~3)
 ├── load_manual.py                   # 수동 CSV 로드 진입점 (inputs/ → outputs/raw/)
 ├── process.py                       # 전처리·파생변수 전용 진입점 (STEP 4~6)
+├── scale.py                         # 2차 전처리 진입점 (로그 차분 → MinMax, process.py 선행 필수)
 ├── main.py                          # 풀 파이프라인 래퍼 (collect → load_manual → process)
 ├── requirements.txt
 ├── CLAUDE.md                        # 이 파일 (single source of truth)
@@ -187,6 +189,19 @@ Tool/
   - `calc_rolling_volatility(df: pd.DataFrame, window: int) -> pd.DataFrame` — 20일 rolling std
   - `calc_yield_spreads(df: pd.DataFrame) -> pd.DataFrame` — 10Y-1Y, 3Y-1Y, 회사채(AA-/BBB-) - 국고채 3Y (신용 스프레드 기준 만기: gov_3y)
 
+### `src/scaler.py`
+- **역할**: 2차 전처리 — 가격·거래량 레벨 컬럼 로그 차분 후 전체 MinMax 정규화
+- **핵심 함수**:
+  - `log_diff_prices(df: pd.DataFrame) -> pd.DataFrame` — `_LOG_DIFF_COLS` 대상 `log(x_t / x_{t-1})` 적용. `close` 차분 후 `log_return` 중복 제거. 첫 행(NaN) 제거 후 반환
+  - `minmax_scale(df: pd.DataFrame) -> pd.DataFrame` — `sklearn.MinMaxScaler` 전체 컬럼 [0, 1] 정규화
+- **로그 차분 대상 컬럼** (`_LOG_DIFF_COLS`):
+  - KOSPI: `open, high, low, close, volume`
+  - Global macro 가격: `usd_krw, gold_usd, nasdaq_close/high/low/open/volume`
+  - BTC: `btc_open/high/low/close/volume/value, btc_sma, btc_ema, btc_bb_lower/middle/upper`
+  - ETH: `eth_open/high/low/close/volume/value, eth_sma, eth_ema, eth_bb_lower/middle/upper`
+- **로그 차분 제외 컬럼** (이미 정상 시계열):
+  - `volatility_20d`, 금리·채권 전체, 스프레드 전체, `usdkrw_return, gold_return`, `btc_rsi, eth_rsi`
+
 ### `src/storage.py`
 - **역할**: 데이터 저장 (CSV + Parquet 이중 저장)
 - **핵심 함수**:
@@ -227,6 +242,15 @@ Tool/
   3. 파생 변수 생성
   4. 통합 저장 → `outputs/processed/macro_features.parquet`
 
+### `scale.py`
+- **역할**: 2차 전처리 전용 진입점. `macro_features.parquet`을 읽어 로그 차분 + MinMax 정규화 후 저장
+- **선행 조건**: `process.py` 실행 완료 (`outputs/processed/macro_features.parquet` 존재 여부 체크)
+- **실행 순서**:
+  1. `macro_features.parquet` 로드
+  2. `log_diff_prices()` — 가격·거래량 레벨 컬럼 로그 차분, 첫 행 제거
+  3. `minmax_scale()` — 전체 컬럼 [0, 1] 정규화
+  4. 저장 → `outputs/processed/macro_features_scaled.parquet`
+
 ### `main.py`
 - **역할**: 풀 파이프라인 래퍼
 - **실행 순서**: `collect` → `load_manual` → `process` 순차 실행
@@ -240,7 +264,8 @@ Tool/
 ```bash
 python collect.py        # API 수집 → outputs/raw/ 저장 (KOSPI)
 python load_manual.py    # 수동 CSV 로드 → outputs/raw/ 저장 (채권, 감정, 글로벌, 크립토)
-python process.py        # 전처리·파생변수 → outputs/processed/ 저장 (위 두 개 선행 필수)
+python process.py        # 전처리·파생변수 → outputs/processed/macro_features.parquet
+python scale.py          # 2차 전처리 → outputs/processed/macro_features_scaled.parquet (process.py 선행 필수)
 python main.py           # 전체 파이프라인 실행
 ```
 
@@ -319,6 +344,7 @@ set PYTHONIOENCODING=utf-8 && python collect.py
 | 2026-05-21 | 결측치 처리 전략 변경: 모델 레이어 → 파이프라인 2단계 처리 | KOSPI/채권 ~35%, nasdaq ~31% 결측률이 모델 학습에 부담. 이상치 NaN은 선형 보간(limit=1), 휴장일 NaN은 ffill로 구분 처리. 이상치가 휴장일로 전파되는 것을 방지. concat 후 저장 직전 적용. 시작부 잔여 NaN은 모델 레이어에서 처리 | 창 1 |
 | 2026-05-22 | crypto 컬럼 확장: 종가만 → OHLCV 전체 | inputs/crypto/ CSV에 OHLCV 데이터가 이미 존재하나 manual_loader가 close만 추출. BTC/ETH 각각 open·high·low·close·volume 전체 반영 | 창 1 |
 | 2026-05-22 | crypto 기술적 지표 추가: value, SMA, EMA, BB_lower/middle/upper, RSI | inputs/crypto/ CSV 파일이 _features 접미사로 갱신되며 기술적 지표 컬럼 추가. manual_loader _COLUMN_MAP 키명·매핑 및 _EXPECTED_COLUMNS 업데이트 | 창 1 |
+| 2026-05-22 | 2차 전처리 추가: 로그 차분 → MinMax 정규화 | 가격·거래량 레벨 컬럼 정상화(비정상 시계열 제거) 및 전체 피처 스케일 [0,1] 통일. src/scaler.py + scale.py 신규, 출력: macro_features_scaled.parquet | 창 1 |
 
 > 설계 변경 시 반드시 이 테이블에 추가한다.
 
