@@ -18,31 +18,55 @@ _EXPECTED_COLUMNS: dict[str, list[str]] = {
         "base_rate",
     ],
     "sentiment":    ["date", "sentiment_youtube", "sentiment_news"],
-    "global_macro": ["date", "usd_krw", "gold_usd", "nasdaq_close", "us_rate"],
+    "global_macro": [
+        "date",
+        "usd_krw", "usdkrw_return",
+        "gold_usd", "gold_return",
+        "nasdaq_close", "nasdaq_high", "nasdaq_low", "nasdaq_open", "nasdaq_volume",
+        "us_rate", "us_rate_high", "us_rate_low", "us_rate_open", "us_rate_volume",
+    ],
     "crypto": [
         "date",
-        "btc_open", "btc_high", "btc_low", "btc_close", "btc_volume",
-        "eth_open", "eth_high", "eth_low", "eth_close", "eth_volume",
+        "btc_open", "btc_high", "btc_low", "btc_close", "btc_volume", "btc_value",
+        "btc_sma", "btc_ema", "btc_bb_lower", "btc_bb_middle", "btc_bb_upper", "btc_rsi",
+        "eth_open", "eth_high", "eth_low", "eth_close", "eth_volume", "eth_value",
+        "eth_sma", "eth_ema", "eth_bb_lower", "eth_bb_middle", "eth_bb_upper", "eth_rsi",
     ],
 }
 
 _INPUTS_DIR = Path("inputs")
 
 _COLUMN_MAP: dict[str, dict[str, str]] = {
-    "upbit_btc_2021_2025.csv": {
+    "upbit_btc_2021_2025_features.csv": {
         "datetime": "date",
         "open": "btc_open", "high": "btc_high", "low": "btc_low",
-        "close": "btc_close", "volume": "btc_volume",
+        "close": "btc_close", "volume": "btc_volume", "value": "btc_value",
+        "SMA": "btc_sma", "EMA": "btc_ema",
+        "BB_lower": "btc_bb_lower", "BB_middle": "btc_bb_middle", "BB_upper": "btc_bb_upper",
+        "RSI": "btc_rsi",
     },
-    "upbit_eth_2021_2025.csv": {
+    "upbit_eth_2021_2025_features.csv": {
         "datetime": "date",
         "open": "eth_open", "high": "eth_high", "low": "eth_low",
-        "close": "eth_close", "volume": "eth_volume",
+        "close": "eth_close", "volume": "eth_volume", "value": "eth_value",
+        "SMA": "eth_sma", "EMA": "eth_ema",
+        "BB_lower": "eth_bb_lower", "BB_middle": "eth_bb_middle", "BB_upper": "eth_bb_upper",
+        "RSI": "eth_rsi",
     },
-    "exchange_rate_usdkrw_5years.csv":  {"Date": "date", "USDKRW": "usd_krw"},
-    "gold_5years.csv":                  {"Date": "date", "GOLD": "gold_usd"},
-    "nasdaq_2021_2025.csv":             {"Price": "date", "Close": "nasdaq_close"},
-    "us_10yr_treasury_2021_2025.csv":   {"Price": "date", "Close": "us_rate"},
+    "exchange_rate_usdkrw_5years.csv": {
+        "Date": "date", "USDKRW": "usd_krw", "USDKRW_return": "usdkrw_return",
+    },
+    "gold_5years.csv": {
+        "Date": "date", "GOLD": "gold_usd", "GOLD_return": "gold_return",
+    },
+    "nasdaq_2021_2025.csv": {
+        "Price": "date", "Close": "nasdaq_close", "High": "nasdaq_high",
+        "Low": "nasdaq_low", "Open": "nasdaq_open", "Volume": "nasdaq_volume",
+    },
+    "us_10yr_treasury_2021_2025.csv": {
+        "Price": "date", "Close": "us_rate", "High": "us_rate_high",
+        "Low": "us_rate_low", "Open": "us_rate_open", "Volume": "us_rate_volume",
+    },
 }
 
 _SKIP_ROWS: dict[str, list[int]] = {

@@ -127,9 +127,9 @@ Tool/
 |------|------|-----------|-----------|
 | 수동 다운로드 | 국고채 1Y/3Y/5Y/10Y/20Y/30Y, 통안채 91D/1Y/2Y, 회사채 AA-/BBB-, 기준금리 | `inputs/bond/` | date, gov_1y, gov_3y, gov_5y, gov_10y, gov_20y, gov_30y, msc_91d, msc_1y, msc_2y, corp_aa, corp_bbb, base_rate |
 | 김근환 | 유튜브 제목·뉴스 헤드라인 감정점수 | `inputs/sentiment/` | date, sentiment_youtube, sentiment_news |
-| 노정균 | 환율(USD/KRW), 금값(USD/oz) | `inputs/global_macro/` | date, usd_krw, gold_usd |
-| 이찬희 | 나스닥 지수, 미국 금리 | `inputs/global_macro/` | date, nasdaq_close, us_rate |
-| 이준하 | 비트코인·이더리움 OHLCV | `inputs/crypto/` | date, btc_open, btc_high, btc_low, btc_close, btc_volume, eth_open, eth_high, eth_low, eth_close, eth_volume |
+| 노정균 | 환율(USD/KRW), 금값(USD/oz) | `inputs/global_macro/` | date, usd_krw, usdkrw_return, gold_usd, gold_return |
+| 이찬희 | 나스닥 지수, 미국 금리 | `inputs/global_macro/` | date, nasdaq_close, nasdaq_high, nasdaq_low, nasdaq_open, nasdaq_volume, us_rate, us_rate_high, us_rate_low, us_rate_open, us_rate_volume |
+| 이준하 | 비트코인·이더리움 OHLCV + 기술적 지표 | `inputs/crypto/` | date, btc_open, btc_high, btc_low, btc_close, btc_volume, btc_value, btc_sma, btc_ema, btc_bb_lower, btc_bb_middle, btc_bb_upper, btc_rsi, eth_open, eth_high, eth_low, eth_close, eth_volume, eth_value, eth_sma, eth_ema, eth_bb_lower, eth_bb_middle, eth_bb_upper, eth_rsi |
 
 > **CSV 공통 규칙**:
 > - 첫 번째 컬럼은 반드시 `date` (형식: `YYYY-MM-DD`)
@@ -318,6 +318,7 @@ set PYTHONIOENCODING=utf-8 && python collect.py
 | 2026-05-21 | ECOS API 제거, 채권 데이터 수동 CSV로 전환 | 채권 수익률 수동 CSV가 이미 동일 데이터 커버. bond_collector.py 삭제, inputs/bond/ 추가, load_manual에 load_bond 추가. base_rate는 bond CSV 마지막 컬럼으로 수동 포함 | 창 1 |
 | 2026-05-21 | 결측치 처리 전략 변경: 모델 레이어 → 파이프라인 2단계 처리 | KOSPI/채권 ~35%, nasdaq ~31% 결측률이 모델 학습에 부담. 이상치 NaN은 선형 보간(limit=1), 휴장일 NaN은 ffill로 구분 처리. 이상치가 휴장일로 전파되는 것을 방지. concat 후 저장 직전 적용. 시작부 잔여 NaN은 모델 레이어에서 처리 | 창 1 |
 | 2026-05-22 | crypto 컬럼 확장: 종가만 → OHLCV 전체 | inputs/crypto/ CSV에 OHLCV 데이터가 이미 존재하나 manual_loader가 close만 추출. BTC/ETH 각각 open·high·low·close·volume 전체 반영 | 창 1 |
+| 2026-05-22 | crypto 기술적 지표 추가: value, SMA, EMA, BB_lower/middle/upper, RSI | inputs/crypto/ CSV 파일이 _features 접미사로 갱신되며 기술적 지표 컬럼 추가. manual_loader _COLUMN_MAP 키명·매핑 및 _EXPECTED_COLUMNS 업데이트 | 창 1 |
 
 > 설계 변경 시 반드시 이 테이블에 추가한다.
 
